@@ -1,6 +1,6 @@
 # Welcome to Griptape
 
-[![Griptape Discord](https://dcbadge.vercel.app/api/server/Wv8R7JM7X4?compact=true&style=flat)](https://discord.gg/Wv8R7JM7X4)
+[![Griptape Discord](https://dcbadge.vercel.app/api/server/gnWRz88eym?compact=true&style=flat)](https://discord.gg/gnWRz88eym)
 [![Docs](https://readthedocs.org/projects/griptape/badge/)](https://griptape.readthedocs.io)
 
 ## Projects
