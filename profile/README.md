@@ -13,8 +13,7 @@
 
 ## Docs
 
-Please refer to [Griptape Docs](https://griptape.readthedocs.io) for:
-
+Please refer to the [Griptape Docs](https://griptape.readthedocs.io) for:
 - Getting started guides. 
 - Core concepts and design overviews.
 - Examples.
