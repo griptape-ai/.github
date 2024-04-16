@@ -9,8 +9,6 @@
 
 - **[griptape](https://github.com/griptape-ai/griptape)** offers developers the ability to build AI systems that operate across two dimensions: predictability and creativity. For **predictability**, software structures like sequential pipelines and directed acyclic graphs (DAGs) are enforced. **Creativity**, on the other hand, is facilitated by safely prompting LLMs with Griptape Tools that connect to external APIs and data sources. Developers can move between these two dimensions according to their use case.
 
-- **[griptape-docs](https://github.com/griptape-ai/griptape-docs)**: official Griptape docs repository.
-
 ## Docs
 
 Please refer to the [Griptape Docs](https://docs.griptape.ai/) for:
