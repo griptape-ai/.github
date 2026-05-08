@@ -1,0 +1,42 @@
+name: Project — Iteration Rollover Sweep
+
+# Once a day, finds items still marked In Progress whose iteration has ended
+# and rolls them back to Backlog (clearing the iteration). Forces a deliberate
+# replan instead of letting stale "In Progress" items accumulate.
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Log changes without applying them"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: project-iteration-rollover
+  cancel-in-progress: false
+
+jobs:
+  rollover:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install dependencies
+        working-directory: .github/scripts
+        run: npm install --no-audit --no-fund
+      - name: Roll over ended iterations
+        working-directory: .github/scripts
+        env:
+          PROJECTS_TOKEN: ${{ secrets.PROJECTS_TOKEN }}
+          PROJECT_OWNER: griptape-ai
+          PROJECT_NUMBER: "2"
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: node iteration-rollover.mjs

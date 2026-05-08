@@ -1,0 +1,42 @@
+name: Project — Set In Progress on Iteration + Assignee
+
+# Polls the org project every 15 minutes and flips items to In Progress when
+# they are scheduled to the current iteration and have at least one assignee.
+# Pairs with project-iteration-rollover.yml, which handles the reverse direction.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Log changes without applying them"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: project-set-in-progress
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install dependencies
+        working-directory: .github/scripts
+        run: npm install --no-audit --no-fund
+      - name: Reconcile In Progress
+        working-directory: .github/scripts
+        env:
+          PROJECTS_TOKEN: ${{ secrets.PROJECTS_TOKEN }}
+          PROJECT_OWNER: griptape-ai
+          PROJECT_NUMBER: "2"
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: node set-in-progress.mjs
