@@ -7,7 +7,7 @@ relying on humans to flip it manually.
 |---|---|---|
 | `project-triage-new-issues.yml` | every 15 min | Find open issues across every repo in the org that aren't on the project yet, add them, and set `Status = To Triage`. |
 | `project-set-in-progress.yml` | every 15 min | If `Status = Backlog` AND item is in the current iteration AND has ≥1 assignee → set `Status = In Progress`. |
-| `project-iteration-rollover.yml` | daily at 06:00 UTC | If `Status = In Progress` AND the assigned iteration has ended → set `Status = Backlog`, clear `Iteration`. Also catches "orphan" items: `Status = In Progress` with no `Iteration` set, untouched for 24h → `Status = Backlog`. |
+| `project-iteration-rollover.yml` | daily at 06:00 UTC | If `Status = In Progress` AND the assigned iteration has ended → set `Status = Backlog`, clear `Iteration`. Also catches "orphan" items: `Status = In Progress` with no `Iteration` set (or with no assignees), untouched for 24h → `Status = Backlog`. |
 
 Both workflows can also be triggered manually via **Actions → Run workflow**,
 with a `dry_run` toggle that logs changes without applying them. Run dry-run
@@ -81,9 +81,10 @@ If any of those names change, update the strings in `project-helpers.mjs`.
   closed → Done); `Blocked` is intentionally manual because it requires
   context only a human has.
 - They never demote `In Progress` back to `Backlog` while the iteration is
-  still active. Mid-iteration churn should be a deliberate human decision.
-  The orphan sweep is the one exception: if `In Progress` is set with no
-  iteration at all and nothing touches the item for 24h, it gets returned to
-  Backlog on the assumption that the iteration was forgotten.
+  still active and the item has an assignee. Mid-iteration churn should be a
+  deliberate human decision. The orphan sweep is the one exception: if
+  `In Progress` is set with no iteration at all, or with no assignees, and
+  nothing touches the item for 24h, it gets returned to Backlog on the
+  assumption that the iteration was forgotten or the work was abandoned.
 - They never archive items. Auto-archive is a built-in project workflow;
   configure it on the project itself.
