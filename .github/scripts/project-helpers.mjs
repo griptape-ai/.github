@@ -83,6 +83,7 @@ export async function loadProjectMetadata(client) {
       inProgress: statusOption("In Progress"),
       inReview: statusOption("In Review"),
       done: statusOption("Done"),
+      blocked: statusOption("Blocked"),
     },
     iterations: {
       active: iteration.configuration.iterations,
