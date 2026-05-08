@@ -78,6 +78,7 @@ export async function loadProjectMetadata(client) {
     statusFieldId: status.id,
     iterationFieldId: iteration.id,
     statusOptionIds: {
+      toTriage: statusOption("To Triage"),
       backlog: statusOption("Backlog"),
       inProgress: statusOption("In Progress"),
       inReview: statusOption("In Review"),
@@ -132,6 +133,7 @@ export async function* iterateProjectItems(client) {
               nodes {
                 id
                 isArchived
+                updatedAt
                 fieldValues(first: 30) {
                   nodes {
                     __typename
@@ -189,6 +191,7 @@ export async function* iterateProjectItems(client) {
         iterationId: iteration?.iterationId ?? null,
         iterationValue: iteration ?? null,
         assigneeCount: item.content?.assignees?.totalCount ?? 0,
+        updatedAt: item.updatedAt ?? null,
         contentRef: item.content
           ? `${item.content.repository?.nameWithOwner}#${item.content.number}`
           : "(draft)",
@@ -214,6 +217,62 @@ export async function setStatus(client, projectId, statusFieldId, itemId, option
     `,
     { projectId, itemId, fieldId: statusFieldId, optionId },
   );
+}
+
+// Walk every open issue in the org that is NOT already on the project. Used by
+// the triage sweep to pull newly created issues onto the board. Search
+// excludes pull requests via `is:issue` and excludes anything already on the
+// project via `-project:OWNER/NUMBER`.
+export async function* searchUntriagedIssues(client) {
+  const { owner, number } = projectCoords();
+  const queryString = `is:issue is:open org:${owner} -project:${owner}/${number}`;
+  let cursor = null;
+  while (true) {
+    const data = await client(
+      `
+      query($q: String!, $cursor: String) {
+        search(query: $q, type: ISSUE, first: ${PAGE_SIZE}, after: $cursor) {
+          pageInfo { hasNextPage endCursor }
+          nodes {
+            ... on Issue {
+              id
+              number
+              repository { nameWithOwner }
+            }
+          }
+        }
+      }
+      `,
+      { q: queryString, cursor },
+    );
+
+    for (const node of data.search.nodes) {
+      if (!node?.id) continue;
+      yield {
+        contentId: node.id,
+        contentRef: `${node.repository.nameWithOwner}#${node.number}`,
+      };
+    }
+
+    if (!data.search.pageInfo.hasNextPage) return;
+    cursor = data.search.pageInfo.endCursor;
+  }
+}
+
+// Add an issue/PR to the project. Idempotent: if the item already exists, the
+// API returns the existing item ID rather than erroring.
+export async function addItemToProject(client, projectId, contentId) {
+  const data = await client(
+    `
+    mutation($projectId: ID!, $contentId: ID!) {
+      addProjectV2ItemById(input: { projectId: $projectId, contentId: $contentId }) {
+        item { id }
+      }
+    }
+    `,
+    { projectId, contentId },
+  );
+  return data.addProjectV2ItemById.item.id;
 }
 
 export async function clearIteration(client, projectId, iterationFieldId, itemId) {

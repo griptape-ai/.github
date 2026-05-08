@@ -1,8 +1,10 @@
 name: Project — Iteration Rollover Sweep
 
-# Once a day, finds items still marked In Progress whose iteration has ended
-# and rolls them back to Backlog (clearing the iteration). Forces a deliberate
-# replan instead of letting stale "In Progress" items accumulate.
+# Once a day, sweeps stale "In Progress" items back to Backlog:
+#  - items whose iteration has ended (clears the iteration), and
+#  - items with no iteration at all that haven't been touched in 24h.
+# Forces a deliberate replan instead of letting silent "In Progress" rot
+# accumulate.
 
 on:
   schedule:
