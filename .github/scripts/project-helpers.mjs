@@ -1,4 +1,4 @@
-import { graphql } from "@octokit/graphql";
+import { graphql, GraphqlResponseError } from "@octokit/graphql";
 
 const PAGE_SIZE = 100;
 
@@ -119,12 +119,17 @@ export function isIterationEnded(iterationValue) {
 }
 
 // Walk every project item, yielding the bits we care about: status option ID,
-// iteration value, and assignee count from the underlying issue/PR.
+// iteration value, and assignee count from the underlying issue/PR. Items
+// whose `content` field 403s (e.g. issue lives in a repo the token can't see)
+// are surfaced via partial-data errors; we log the paths and use whatever
+// resolved instead of failing the whole sweep.
 export async function* iterateProjectItems(client) {
   const { owner, number } = projectCoords();
   let cursor = null;
   while (true) {
-    const data = await client(
+    let data;
+    try {
+      data = await client(
       `
       query($owner: String!, $number: Int!, $cursor: String) {
         organization(login: $owner) {
@@ -175,6 +180,13 @@ export async function* iterateProjectItems(client) {
       `,
       { owner, number, cursor },
     );
+    } catch (err) {
+      if (!(err instanceof GraphqlResponseError) || !err.response?.data) throw err;
+      for (const e of err.errors ?? []) {
+        console.warn(`partial-data error at ${(e.path ?? []).join(".")}: ${e.message}`);
+      }
+      data = err.response.data;
+    }
 
     const page = data.organization.projectV2.items;
     for (const item of page.nodes) {
