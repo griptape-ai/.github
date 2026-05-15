@@ -182,8 +182,14 @@ export async function* iterateProjectItems(client) {
     );
     } catch (err) {
       if (!(err instanceof GraphqlResponseError) || !err.response?.data) throw err;
+      const nodes = err.response.data.organization?.projectV2?.items?.nodes ?? [];
       for (const e of err.errors ?? []) {
-        console.warn(`partial-data error at ${(e.path ?? []).join(".")}: ${e.message}`);
+        const path = e.path ?? [];
+        // Path shape we care about: organization.projectV2.items.nodes.N.content
+        const idx = path[3] === "nodes" ? path[4] : null;
+        const itemId = typeof idx === "number" ? nodes[idx]?.id : null;
+        const suffix = itemId ? ` (item ${itemId})` : "";
+        console.warn(`partial-data error at ${path.join(".")}${suffix}: ${e.message}`);
       }
       data = err.response.data;
     }
