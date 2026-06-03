@@ -1,6 +1,6 @@
 # Welcome to Griptape
 
-[![Griptape Discord](https://dcbadge.vercel.app/api/server/gnWRz88eym?compact=true&style=flat)](https://discord.gg/gnWRz88eym)
+[![Griptape Discord](https://dcbadge.limes.pink/api/server/gnWRz88eym?style=flat)](https://discord.gg/gnWRz88eym)
 [![Docs](https://readthedocs.org/projects/griptape/badge/)](https://griptape.readthedocs.io)
 
 **griptape** is a modular Python framework for LLM workflows, tools, memory, and data 
