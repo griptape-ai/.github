@@ -5,8 +5,8 @@ relying on humans to flip it manually.
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `project-triage-new-issues.yml` | every 15 min | Find open issues across every repo in the org that aren't on the project yet, add them, and set `Status = To Triage`. |
-| `project-set-in-progress.yml` | every 15 min | If `Status = Backlog` AND item is in the current iteration AND has ≥1 assignee → set `Status = In Progress`. |
+| `project-triage-new-issues.yml` | hourly (`:00`) | Find open issues across every repo in the org that aren't on the project yet, add them, and set `Status = To Triage`. |
+| `project-set-in-progress.yml` | hourly (`:30`) | If `Status = Backlog` AND item is in the current iteration AND has ≥1 assignee → set `Status = In Progress`. |
 | `project-iteration-rollover.yml` | daily at 06:00 UTC | If `Status = In Progress` AND the assigned iteration has ended → set `Status = Backlog`, clear `Iteration`. Also catches "orphan" items: `Status = In Progress` with no `Iteration` set (or with no assignees), untouched for 24h → `Status = Backlog`. |
 
 Both workflows can also be triggered manually via **Actions → Run workflow**,

@@ -1,12 +1,14 @@
 name: Project — Set In Progress on Iteration + Assignee
 
-# Polls the org project every 15 minutes and flips items to In Progress when
-# they are scheduled to the current iteration and have at least one assignee.
-# Pairs with project-iteration-rollover.yml, which handles the reverse direction.
+# Polls the org project hourly and flips items to In Progress when they are
+# scheduled to the current iteration and have at least one assignee. Pairs
+# with project-iteration-rollover.yml, which handles the reverse direction.
+# Staggered 30m off project-triage-new-issues so the two sweeps don't hit the
+# GraphQL API in the same burst.
 
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    - cron: "30 * * * *"
   workflow_dispatch:
     inputs:
       dry_run:
