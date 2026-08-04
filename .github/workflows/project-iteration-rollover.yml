@@ -27,6 +27,20 @@ jobs:
   rollover:
     runs-on: ubuntu-latest
     steps:
+      - name: Mint project automation token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.PROJECTS_APP_CLIENT_ID }}
+          private-key: ${{ secrets.PROJECTS_APP_PRIVATE_KEY }}
+          owner: griptape-ai
+          # Reads assignees off both Issue and PullRequest item content, so it
+          # needs both content permissions. Dropping either one degrades
+          # silently: assignee counts read as 0 and the orphan sweep starts
+          # demoting items it should have left alone.
+          permission-issues: read
+          permission-pull-requests: read
+          permission-organization-projects: write
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
@@ -37,7 +51,7 @@ jobs:
       - name: Roll over ended iterations
         working-directory: .github/scripts
         env:
-          PROJECTS_TOKEN: ${{ secrets.PROJECTS_TOKEN }}
+          PROJECTS_TOKEN: ${{ steps.app-token.outputs.token }}
           PROJECT_OWNER: griptape-ai
           PROJECT_NUMBER: "2"
           DRY_RUN: ${{ inputs.dry_run || 'false' }}

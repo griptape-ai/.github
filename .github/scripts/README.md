@@ -16,36 +16,62 @@ once after any field rename to confirm the scripts still resolve everything.
 ## Setup
 
 These scripts mutate the org-level project, which the default `GITHUB_TOKEN`
-can't do. You need a token with project write access.
+can't do, so the workflows mint an installation token from a dedicated GitHub
+App instead.
 
-### Option A: fine-grained PAT (fastest)
+A PAT would also work, but it is the wrong shape for scheduled automation.
+Every PAT a person holds shares one 5,000 points/hour GraphQL budget keyed to
+their user ID, along with every OAuth app and CLI they have authorized. Three
+sweeps paginating `ProjectV2` items at roughly 30 points a page will quietly
+eat that budget and then break whatever else that human was doing. An
+installation token owned by `griptape-ai` gets its own 10,000 points/hour
+GraphQL budget, separate from any person.
 
-1. https://github.com/settings/personal-access-tokens → **Generate new token**.
-2. Resource owner: `griptape-ai`.
-3. Repository access: **All repositories** (the triage sweep searches issues
-   across every repo in the org; the other workflows only need the token to
-   authenticate).
-4. Repository permissions:
-   - **Issues: Read-only** (so the search can see issues in every repo)
-5. Organization permissions:
-   - **Projects: Read and write**
-   - **Members: Read-only**
-6. Copy the token, add it as a repository secret in `griptape-ai/.github`
-   named `PROJECTS_TOKEN`.
+### Register the App
 
-PATs expire. Calendar a renewal.
+There is no API that creates a GitHub App, so this step is a browser click.
+This link prefills every field:
 
-### Option B: GitHub App (preferred long-term)
+<https://github.com/organizations/griptape-ai/settings/apps/new?name=Griptape+Projects&url=https%3A%2F%2Fgithub.com%2Fgriptape-ai%2F.github&public=false&issues=read&pull_requests=read&organization_projects=write>
 
-1. Create an org-level GitHub App with `organization_projects: write`,
-   `members: read`, and `issues: read`.
-2. Install it on **all** org repos (the triage sweep needs to see issues
-   org-wide).
-3. Use a token-minting action (`tibdex/github-app-token` or
-   `actions/create-github-app-token`) at the start of each job and pass the
-   minted token as `PROJECTS_TOKEN`.
+Confirm these are set before clicking **Create GitHub App**, since URL
+prefill is best-effort and silently drops anything it does not recognize:
 
-No expirations to babysit; recommended once the workflows prove out.
+| Scope | Permission | Why |
+|---|---|---|
+| Organization | **Projects: Read and write** | Read items, write `Status`, clear `Iteration`. Must be the *organization* permission, not the repository one, which covers classic repo projects instead. |
+| Repository | **Issues: Read-only** | The triage search, and issue assignee counts. |
+| Repository | **Pull requests: Read-only** | PR assignee counts on project items. |
+
+Webhooks stay off. Nothing listens for events, and the prefill link leaves
+them disabled.
+
+Then **Install App** on **All repositories**. The triage sweep searches issues
+org-wide and silently skips anything the installation cannot see. Installing
+is also browser-only for an org-owned App: the programmatic install endpoints
+only work for enterprise-owned Apps, and require a separate bootstrap App plus
+enterprise owner rights.
+
+### Wire up the secrets
+
+Generate a private key on the App's settings page, then from that directory:
+
+```sh
+gh variable set PROJECTS_APP_CLIENT_ID --repo griptape-ai/.github --body "Iv23li..."
+gh secret set PROJECTS_APP_PRIVATE_KEY --repo griptape-ai/.github < griptape-projects.*.private-key.pem
+rm griptape-projects.*.private-key.pem
+```
+
+Use the **Client ID** (`Iv23li...`), not the numeric App ID. Both work, but
+`actions/create-github-app-token` treats `app-id` as legacy.
+
+Each workflow then narrows the token further with `permission-*` inputs, so
+the App can hold the superset while any single job only gets what it uses.
+`actions/create-github-app-token` revokes the minted token when the job ends,
+so there is nothing to rotate and nothing to babysit.
+
+Once a dry run passes, delete the old `PROJECTS_TOKEN` secret so nothing can
+quietly fall back to a human's rate limit.
 
 ## Local development
 
@@ -62,6 +88,12 @@ PROJECTS_TOKEN=ghp_xxx PROJECT_OWNER=griptape-ai PROJECT_NUMBER=2 DRY_RUN=true \
 
 `DRY_RUN=true` logs every flip without making any GraphQL mutations. Use this
 to confirm behaviour before letting the cron loose.
+
+For local runs, `PROJECTS_TOKEN` can be a fine-grained PAT with the same
+permissions as the App (org Projects write, repo Issues read, repo Pull
+requests read, all repositories). Keep that PAT for local use only. Pointing
+the scheduled workflows at it puts the sweeps back on your personal rate
+limit.
 
 ## Field assumptions
 

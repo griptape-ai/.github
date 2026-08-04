@@ -26,6 +26,16 @@ jobs:
   triage:
     runs-on: ubuntu-latest
     steps:
+      - name: Mint project automation token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.PROJECTS_APP_CLIENT_ID }}
+          private-key: ${{ secrets.PROJECTS_APP_PRIVATE_KEY }}
+          owner: griptape-ai
+          # Searches issues org-wide, then writes items and Status.
+          permission-issues: read
+          permission-organization-projects: write
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
@@ -36,7 +46,7 @@ jobs:
       - name: Add untriaged issues to project
         working-directory: .github/scripts
         env:
-          PROJECTS_TOKEN: ${{ secrets.PROJECTS_TOKEN }}
+          PROJECTS_TOKEN: ${{ steps.app-token.outputs.token }}
           PROJECT_OWNER: griptape-ai
           PROJECT_NUMBER: "2"
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
