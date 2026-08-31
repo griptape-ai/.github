@@ -21,8 +21,9 @@ export function projectCoords() {
   return { owner, number };
 }
 
-// Resolve project ID and field metadata (IDs + option IDs) by human name so the
-// scripts stay correct if a field is recreated.
+// Resolve project ID and Status field metadata by human name so the scripts stay
+// correct if the field is recreated. Only the options a script writes are
+// resolved: renaming an option nothing writes must not break a sweep.
 export async function loadProjectMetadata(client) {
   const { owner, number } = projectCoords();
   const data = await client(
@@ -34,17 +35,9 @@ export async function loadProjectMetadata(client) {
           fields(first: 50) {
             nodes {
               __typename
-              ... on ProjectV2FieldCommon { id name }
               ... on ProjectV2SingleSelectField {
                 id name
                 options { id name }
-              }
-              ... on ProjectV2IterationField {
-                id name
-                configuration {
-                  iterations { id title startDate duration }
-                  completedIterations { id title startDate duration }
-                }
               }
             }
           }
@@ -60,11 +53,9 @@ export async function loadProjectMetadata(client) {
     throw new Error(`Project ${owner}/projects/${number} not found or not accessible`);
   }
 
-  const fields = project.fields.nodes;
-  const status = fields.find((f) => f.name === "Status");
-  const iteration = fields.find((f) => f.name === "Iteration");
-  if (!status || !iteration) {
-    throw new Error("Project must have Status and Iteration fields");
+  const status = project.fields.nodes.find((f) => f.name === "Status");
+  if (!status) {
+    throw new Error("Project must have a Status field");
   }
 
   const statusOption = (name) => {
@@ -76,52 +67,20 @@ export async function loadProjectMetadata(client) {
   return {
     projectId: project.id,
     statusFieldId: status.id,
-    iterationFieldId: iteration.id,
     statusOptionIds: {
       toTriage: statusOption("To Triage"),
       backlog: statusOption("Backlog"),
       inProgress: statusOption("In Progress"),
-      inReview: statusOption("In Review"),
-      done: statusOption("Done"),
-      blocked: statusOption("Blocked"),
-    },
-    iterations: {
-      active: iteration.configuration.iterations,
-      completed: iteration.configuration.completedIterations,
     },
   };
 }
 
-// The "current" iteration is whichever active iteration today falls inside.
-// Iterations are stored as startDate (YYYY-MM-DD) + duration (days).
-export function currentIterationId(iterations) {
-  const today = new Date();
-  today.setUTCHours(0, 0, 0, 0);
-  for (const it of iterations.active) {
-    const start = new Date(`${it.startDate}T00:00:00Z`);
-    const end = new Date(start);
-    end.setUTCDate(end.getUTCDate() + it.duration);
-    if (today >= start && today < end) return it.id;
-  }
-  return null;
-}
-
-// Iteration value is "ended" if its (startDate + duration) is on or before today.
-// Used for the rollover sweep.
-export function isIterationEnded(iterationValue) {
-  if (!iterationValue) return false;
-  const start = new Date(`${iterationValue.startDate}T00:00:00Z`);
-  const end = new Date(start);
-  end.setUTCDate(end.getUTCDate() + iterationValue.duration);
-  const today = new Date();
-  today.setUTCHours(0, 0, 0, 0);
-  return end <= today;
-}
-
-// Walk every project item, yielding the bits we care about: status option ID,
-// iteration value, and assignee count from the underlying issue/PR. Items
-// whose `content` field 403s (e.g. issue lives in a repo the token can't see)
-// are surfaced via partial-data errors; we log the paths and use whatever
+// Walk every project item, yielding the bits the sweeps care about. The Status
+// value carries its own `updatedAt`, which moves only when Status changes, so it
+// is the item's age in its current stage rather than a last-touched proxy.
+//
+// Items whose `content` field 403s (e.g. issue lives in a repo the token can't
+// see) are surfaced via partial-data errors; we log the paths and use whatever
 // resolved instead of failing the whole sweep.
 export async function* iterateProjectItems(client) {
   const { owner, number } = projectCoords();
@@ -139,7 +98,6 @@ export async function* iterateProjectItems(client) {
               nodes {
                 id
                 isArchived
-                updatedAt
                 fieldValues(first: 30) {
                   nodes {
                     __typename
@@ -147,29 +105,25 @@ export async function* iterateProjectItems(client) {
                       field { ... on ProjectV2SingleSelectField { name } }
                       optionId
                       name
-                    }
-                    ... on ProjectV2ItemFieldIterationValue {
-                      field { ... on ProjectV2IterationField { name } }
-                      iterationId
-                      title
-                      startDate
-                      duration
+                      updatedAt
                     }
                   }
                 }
                 content {
                   __typename
                   ... on Issue {
+                    id
                     number
                     state
                     repository { nameWithOwner }
-                    assignees(first: 1) { totalCount }
+                    assignees(first: 10) { nodes { login } }
                   }
                   ... on PullRequest {
+                    id
                     number
                     state
                     repository { nameWithOwner }
-                    assignees(first: 1) { totalCount }
+                    assignees(first: 10) { nodes { login } }
                   }
                 }
               }
@@ -200,17 +154,14 @@ export async function* iterateProjectItems(client) {
       const status = item.fieldValues.nodes.find(
         (v) => v.__typename === "ProjectV2ItemFieldSingleSelectValue" && v.field?.name === "Status",
       );
-      const iteration = item.fieldValues.nodes.find(
-        (v) => v.__typename === "ProjectV2ItemFieldIterationValue" && v.field?.name === "Iteration",
-      );
       yield {
         id: item.id,
         statusOptionId: status?.optionId ?? null,
         statusName: status?.name ?? null,
-        iterationId: iteration?.iterationId ?? null,
-        iterationValue: iteration ?? null,
-        assigneeCount: item.content?.assignees?.totalCount ?? 0,
-        updatedAt: item.updatedAt ?? null,
+        statusUpdatedAt: status?.updatedAt ?? null,
+        contentId: item.content?.id ?? null,
+        contentState: item.content?.state ?? null,
+        assignees: (item.content?.assignees?.nodes ?? []).map((n) => n?.login).filter(Boolean),
         contentRef: item.content
           ? `${item.content.repository?.nameWithOwner}#${item.content.number}`
           : "(draft)",
@@ -235,6 +186,22 @@ export async function setStatus(client, projectId, statusFieldId, itemId, option
     }
     `,
     { projectId, itemId, fieldId: statusFieldId, optionId },
+  );
+}
+
+// Comment on the issue or PR behind a project item. `subjectId` is the content
+// node ID, not the project item ID; draft issues have no content and cannot be
+// commented on.
+export async function addComment(client, subjectId, body) {
+  await client(
+    `
+    mutation($subjectId: ID!, $body: String!) {
+      addComment(input: { subjectId: $subjectId, body: $body }) {
+        clientMutationId
+      }
+    }
+    `,
+    { subjectId, body },
   );
 }
 
@@ -292,19 +259,4 @@ export async function addItemToProject(client, projectId, contentId) {
     { projectId, contentId },
   );
   return data.addProjectV2ItemById.item.id;
-}
-
-export async function clearIteration(client, projectId, iterationFieldId, itemId) {
-  await client(
-    `
-    mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!) {
-      clearProjectV2ItemFieldValue(input: {
-        projectId: $projectId
-        itemId: $itemId
-        fieldId: $fieldId
-      }) { projectV2Item { id } }
-    }
-    `,
-    { projectId, itemId, fieldId: iterationFieldId },
-  );
 }

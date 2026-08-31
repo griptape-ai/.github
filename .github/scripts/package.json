@@ -2,7 +2,7 @@
   "name": "griptape-project-automation",
   "private": true,
   "type": "module",
-  "description": "Scripts that keep Griptape's GitHub Project (org-level) Status field in sync with Iteration and Assignee state.",
+  "description": "Scripts that triage new issues onto Griptape's org-level GitHub Project and sweep stale In Progress items back to Backlog.",
   "dependencies": {
     "@octokit/graphql": "^8.1.1"
   }

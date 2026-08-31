@@ -1,10 +1,11 @@
-name: Project — Iteration Rollover Sweep
+name: Project — Stale In Progress Sweep
 
-# Once a day, sweeps stale "In Progress" items back to Backlog:
-#  - items whose iteration has ended (clears the iteration), and
-#  - items with no iteration at all that haven't been touched in 24h.
-# Forces a deliberate replan instead of letting silent "In Progress" rot
-# accumulate.
+# Once a day, moves items that have read "In Progress" for 14 days without a
+# status change back to Backlog, commenting on each one to explain the move.
+#
+# Keyed on age-in-stage (the Status value's own updatedAt), never on Iteration.
+# Status is the only field this automation writes and it is derived from nothing,
+# so the board cannot contradict itself.
 
 on:
   schedule:
@@ -20,11 +21,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: project-iteration-rollover
+  group: project-stale-in-progress
   cancel-in-progress: false
 
 jobs:
-  rollover:
+  sweep:
     runs-on: ubuntu-latest
     steps:
       - name: Mint project automation token
@@ -34,12 +35,11 @@ jobs:
           client-id: ${{ vars.PROJECTS_APP_CLIENT_ID }}
           private-key: ${{ secrets.PROJECTS_APP_PRIVATE_KEY }}
           owner: griptape-ai
-          # Reads assignees off both Issue and PullRequest item content, so it
-          # needs both content permissions. Dropping either one degrades
-          # silently: assignee counts read as 0 and the orphan sweep starts
-          # demoting items it should have left alone.
-          permission-issues: read
-          permission-pull-requests: read
+          # Write on issues and pull requests is for the explanatory comment, not
+          # the demotion. Without it every demotion lands silently, which is the
+          # behaviour this sweep exists to avoid.
+          permission-issues: write
+          permission-pull-requests: write
           permission-organization-projects: write
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -48,11 +48,11 @@ jobs:
       - name: Install dependencies
         working-directory: .github/scripts
         run: npm install --no-audit --no-fund
-      - name: Roll over ended iterations
+      - name: Sweep stale In Progress items
         working-directory: .github/scripts
         env:
           PROJECTS_TOKEN: ${{ steps.app-token.outputs.token }}
           PROJECT_OWNER: griptape-ai
           PROJECT_NUMBER: "2"
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
-        run: node iteration-rollover.mjs
+        run: node stale-in-progress.mjs

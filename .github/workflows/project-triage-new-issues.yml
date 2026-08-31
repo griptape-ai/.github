@@ -2,8 +2,7 @@ name: Project — Triage New Issues
 
 # Polls the org hourly for open issues that aren't on the project yet, adds
 # them, and sets Status = "To Triage". Auto-discovers new repos in the org
-# with no per-repo configuration. Staggered 30m off project-set-in-progress
-# so the two sweeps don't hit the GraphQL API in the same burst.
+# with no per-repo configuration.
 
 on:
   schedule:
