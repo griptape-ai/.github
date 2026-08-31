@@ -55,6 +55,12 @@ Closed issues and merged PRs still reading `In Progress` are skipped. That
 inconsistency belongs to the built-in "closed → Done" workflow; sending finished
 work to `Backlog` would make the board worse.
 
+A demotion whose comment fails still stands, but the run exits non-zero rather
+than reporting green. A silent move is the thing this sweep exists to prevent, so
+it must not pass as success. The usual cause is the App losing `issues: write` or
+`pull_requests: write`. Draft items have nothing to comment on and are counted
+separately without failing the run.
+
 ## Setup
 
 These scripts mutate the org-level project, which the default `GITHUB_TOKEN`
@@ -140,7 +146,11 @@ PROJECTS_TOKEN=ghp_xxx PROJECT_OWNER=griptape-ai PROJECT_NUMBER=2 DRY_RUN=true \
   STALE_DAYS=0 node stale-in-progress.mjs
 ```
 
-The scheduled workflow never sets it.
+`STALE_DAYS=0` matches every `In Progress` item, so it is refused unless
+`DRY_RUN=true`. A blank value falls back to 14 rather than coercing to 0. The
+scheduled workflow never sets it, and there is deliberately no
+`workflow_dispatch` input for it: a threshold typo in a web form should not be
+able to clear the board.
 
 For local runs, `PROJECTS_TOKEN` can be a fine-grained PAT with the same
 permissions as the App (org Projects write, repo Issues write, repo Pull
